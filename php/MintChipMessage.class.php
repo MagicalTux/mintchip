@@ -1,28 +1,5 @@
 <?php
 
-$msg = new MintChipMessage();
-$msg->parse('YE0wS6ADCgEBoRIWEENyZWF0ZWQgd2l0aCBQSFCiMKEuMCwEBBERIiIEAQEEAwAAAQEB/xYVaHR0cDovL3d3dy5nb29nbGUuY29tgAIRIg==');
-/*
-$msg->parse('YIIDYjCCA16gAwoBAaE5FjdQYXltZW50IGNyZWF0ZWQgYnkgdGhlIE1pbnRDaGlwIGFwcGxpY2F0
-aW9uIGZvciBBbmRyb2lkooIDGquCAxYwggMSMIHHBAEmBAgDEAAAAAAAEwQIAxAAAAAAAAUEAQEE
-AwAAMgQEAAAAAAQDGzquBBjJtYyjW71Q0haEN0PQa4Ojpno9Ghd70rEEgYAvADwwl75lBm5SG5uz
-Pujgqb26cQVS5bgElI3Gmi5C95G3jwmWiQWw30tF7tHio1q5DvTMVMMOM0yQ95xVzjf/FoJSyBi7
-09EOiV6GVX510T8z4KzmMlfBa1edYN38mRGn5owmDStm3cFm8nmy0hEDoKO6rcsTbvTiigCcrqVG
-46CCAkQwggGtoAMCAQICAQEwDQYJKoZIhvcNAQEFBQAwbjEfMB0GA1UEAwwWU1MgQ3ljbGUgMSBT
-UyBOdW1iZXIgMDEgMB4GA1UECwwXZUNvaW4gU2lnbmluZyBBdXRob3JpdHkxHDAaBgNVBAoME1Jv
-eWFsIENhbmFkaWFuIE1pbnQxCzAJBgNVBAYTAkNBMB4XDTExMDkyNjE0MzEzNloXDTIxMDkyNjE0
-MzEzNlowYjELMAkGA1UEBhMCQ0ExHDAaBgNVBAoME1JveWFsIENhbmFkaWFuIE1pbnQxGjAYBgNV
-BAsMEWVDb2luIEFzc2V0IFN0b3JlMRkwFwYDVQQDDBAwMzEwMDAwMDAwMDAwMDEzMIGfMA0GCSqG
-SIb3DQEBAQUAA4GNADCBiQKBgQCR5GQ/ls4ciZOfDSX+er4DurI2R3ztTYRlYemRepueZkd2tXXh
-z05YbxG2w3LVFEAzc6RxMdwHjPLtTqVVhHeSZISzYw7OZlR4zRb6JSUSU4xStlN2H3COk9H+7Pvk
-KEZ78QHTjj+C7ycAZpfoqKX1nIiwEe6VHvcfjfqfjgE42wIDAQABMA0GCSqGSIb3DQEBBQUAA4GB
-AD7e+vjbHJVT+h01TlFv34bUbCN/CxjnRWAMyC/7e40vkvmd26ZYvh/y3bij32aGy1++ndYq1Pda
-sn3jgvxo9sKDiLyUK9qi++WxQ2ovh3xh9EpWLGvKi7TxHTsTDBAh4tkvGlFB5eCu3aowF9HeM++t
-eEn/Y0qsg8FxzETbVa+L');
-*/
-
-var_dump($msg->export());
-
 class MintChipMessage {
 	private $version = 1;
 	private $annotation = null;
@@ -35,7 +12,34 @@ class MintChipMessage {
 	const TYPE_AUTH_RESP = 3;
 	const TYPE_VM_RESP = 4;
 
+	const CURRENCY_USD = 1;
+
 	public function __construct() {
+	}
+
+	public function initVmReq($payee, $amount, $currency, $response_url, $include_cert = true) {
+		$this->version = 1;
+		$this->annotation = null;
+		$this->type = self::TYPE_VM_REQ;
+		$this->attrs = array(
+			'vm-req' => array(
+				'payee-id' => pack('H*', $payee),
+				'currency' => chr($currency),
+				'value' => substr(pack('N', $amount*100), 1), // big endian?
+				'include-cert' => $include_cert,
+				'response-url' => $response_url,
+			),
+		);
+	}
+
+	public function getVmReqValue() {
+		if ($this->type != self::TYPE_VM_REQ) throw new \Exception('Cannot use this method on this message');
+		list(,$value) = unpack('N', "\0".$this->attrs['vm-req']['value']);
+		return $value / 100;
+	}
+
+	public function setAnnotation($msg) {
+		$this->annotation = $msg;
 	}
 
 	public function parse($str) {
