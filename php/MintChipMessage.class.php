@@ -12,7 +12,15 @@ class MintChipMessage {
 	const TYPE_AUTH_RESP = 3;
 	const TYPE_VM_RESP = 4;
 
-	const CURRENCY_USD = 1;
+	const CURRENCY_CHF = 0;
+	const CURRENCY_CAD = 1;
+	const CURRENCY_USD = 2;
+	const CURRENCY_EUR = 3;
+	const CURRENCY_GBP = 4;
+	const CURRENCY_JPY = 5;
+	const CURRENCY_AUD = 6;
+	const CURRENCY_INR = 7;
+	const CURRENCY_RUB = 8;
 
 	public function __construct() {
 	}

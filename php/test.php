@@ -6,7 +6,7 @@ $msg = new MintChipMessage();
 
 $msg->parse('YIIAmzCCAJegAwoBAaEIFgZGaWxtMziiggCEoYIAgDB+BAgSEAAAAAAABAQBAQQDAAD/AQH/FmFodHRwOi8vbWVyY2hhbnQubWludGNoaXBjaGFsbGVuZ2UuY29tL3Byby1tZXNzYWdlLnBocD9pZD0zOCZzZXNzaW9uX2lkPTN1ajdpMGdxcXQxZTIwMGptbDJ0dG43MDIygARl64a2');
 
-//$msg->initVmReq('1310000000013121', 10.00, MintChipMessage::CURRENCY_USD, 'http://blog.magicaltux.net');
+//$msg->initVmReq('1310000000013121', 10.00, MintChipMessage::CURRENCY_CAD, 'http://blog.magicaltux.net');
 //$msg->setAnnotation('Donate 10 USD for PHP dev ;)');
 
 //$msg->parse('YE0wS6ADCgEBoRIWEENyZWF0ZWQgd2l0aCBQSFCiMKEuMCwEBBERIiIEAQEEAwAAAQEB/xYVaHR0cDovL3d3dy5nb29nbGUuY29tgAIRIg==');
