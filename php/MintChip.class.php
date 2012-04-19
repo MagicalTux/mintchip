@@ -1,7 +1,8 @@
 <?php
 
 $msg = new MintChipMessage();
-#$msg->parse('YE0wS6ADCgEBoRIWEENyZWF0ZWQgd2l0aCBQSFCiMKEuMCwEBBERIiIEAQEEAwAAAQEB/xYVaHR0cDovL3d3dy5nb29nbGUuY29tgAIRIg==');
+$msg->parse('YE0wS6ADCgEBoRIWEENyZWF0ZWQgd2l0aCBQSFCiMKEuMCwEBBERIiIEAQEEAwAAAQEB/xYVaHR0cDovL3d3dy5nb29nbGUuY29tgAIRIg==');
+/*
 $msg->parse('YIIDYjCCA16gAwoBAaE5FjdQYXltZW50IGNyZWF0ZWQgYnkgdGhlIE1pbnRDaGlwIGFwcGxpY2F0
 aW9uIGZvciBBbmRyb2lkooIDGquCAxYwggMSMIHHBAEmBAgDEAAAAAAAEwQIAxAAAAAAAAUEAQEE
 AwAAMgQEAAAAAAQDGzquBBjJtYyjW71Q0haEN0PQa4Ojpno9Ghd70rEEgYAvADwwl75lBm5SG5uz
@@ -18,8 +19,9 @@ KEZ78QHTjj+C7ycAZpfoqKX1nIiwEe6VHvcfjfqfjgE42wIDAQABMA0GCSqGSIb3DQEBBQUAA4GB
 AD7e+vjbHJVT+h01TlFv34bUbCN/CxjnRWAMyC/7e40vkvmd26ZYvh/y3bij32aGy1++ndYq1Pda
 sn3jgvxo9sKDiLyUK9qi++WxQ2ovh3xh9EpWLGvKi7TxHTsTDBAh4tkvGlFB5eCu3aowF9HeM++t
 eEn/Y0qsg8FxzETbVa+L');
+*/
 
-var_dump($msg);
+var_dump($msg->export());
 
 class MintChipMessage {
 	private $version = 1;
@@ -216,6 +218,76 @@ class MintChipMessage {
 	private static function der2pem($data) {
 		$res = "-----BEGIN CERTIFICATE-----\r\n".chunk_split(base64_encode($data))."-----END CERTIFICATE-----\r\n";
 		return $res;
+	}
+
+	public function export() {
+		// product output format
+		switch($this->type) {
+			case self::TYPE_VM_REQ: return $this->_export_vm_req();
+			default:
+				throw new \Exception('Unsupported format or uninitialized message');
+		}
+	}
+
+	private function writeTLV($tag, $data) {
+		$len = strlen($data);
+
+		if ($len > 127) {
+			$len_hex = dechex($len);
+			if (strlen($len_hex) % 1) $len_hex = '0'.$len_hex;
+			$len_len = strlen($len_hex)/2;
+			$len_bin = chr(0x80 | $len_len) . pack('H*', $len_hex);
+		} else {
+			$len_bin = chr($len);
+		}
+		return chr($tag).$len_bin.$data;
+	}
+
+	private function _export_vm_req() {
+		// Decode value message request
+
+		$data_list = array(
+			'payee-id' => 0x04,
+			'currency' => 0x04,
+			'value' => 0x04,
+			'include-cert' => 0x01,
+			'response-url' => 0x16,
+		);
+
+		$tlv_attrs = '';
+
+		foreach($data_list as $tmp => $tmp_id) {
+			$value = $this->attrs['vm-req'][$tmp];
+			if (($tmp_id == 0x01) && (is_bool($value))) { // BOOL
+				$value = chr($value ? 0xff : 0x00);
+			}
+			$tlv_attrs .= $this->writeTLV($tmp_id, $value);
+		}
+
+		if (isset($this->attrs['vm-req']['challenge'])) {
+			$tlv_attrs .= $this->writeTLV(0x80, $this->attrs['vm-req']['challenge']);
+		}
+
+		// Write ValueMessageRequest
+		$vm_req = $this->writeTLV(0x30, $tlv_attrs);
+		$vm_req_tlv = $this->writeTLV(0xa1, $vm_req);
+		$packet_tlv = $this->writeTLV(0xa2, $vm_req_tlv);
+
+		$version_tlv = $this->writeTLV(0x0a, chr($this->version)); // TODO: support >255
+		$version_tlv = $this->writeTLV(0xa0, $version_tlv);
+
+		if (!is_null($this->annotation)) {
+			$annotation_tlv = $this->writeTLV(0x16, $this->annotation);
+			$annotation_tlv = $this->writeTLV(0xa1, $annotation_tlv);
+
+			$message_packet = $this->writeTLV(0x30, $version_tlv . $annotation_tlv . $packet_tlv);
+		} else {
+			$message_packet = $this->writeTLV(0x30, $version_tlv . $packet_tlv);
+		}
+
+		$mintchipreq = $this->writeTLV(0x60, $message_packet);
+
+		return base64_encode($mintchipreq);
 	}
 }
 
