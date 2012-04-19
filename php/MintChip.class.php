@@ -1,9 +1,7 @@
 <?php
 
 $msg = new MintChipMessage();
-$msg->parse('YE0wS6ADCgEBoRIWEENyZWF0ZWQgd2l0aCBQSFCiMKEuMCwEBBERIiIEAQEEAwAAAQEB/xYVaHR0cDovL3d3dy5nb29nbGUuY29tgAIRIg==');
-var_dump($msg);
-exit;
+#$msg->parse('YE0wS6ADCgEBoRIWEENyZWF0ZWQgd2l0aCBQSFCiMKEuMCwEBBERIiIEAQEEAwAAAQEB/xYVaHR0cDovL3d3dy5nb29nbGUuY29tgAIRIg==');
 $msg->parse('YIIDYjCCA16gAwoBAaE5FjdQYXltZW50IGNyZWF0ZWQgYnkgdGhlIE1pbnRDaGlwIGFwcGxpY2F0
 aW9uIGZvciBBbmRyb2lkooIDGquCAxYwggMSMIHHBAEmBAgDEAAAAAAAEwQIAxAAAAAAAAUEAQEE
 AwAAMgQEAAAAAAQDGzquBBjJtYyjW71Q0haEN0PQa4Ojpno9Ghd70rEEgYAvADwwl75lBm5SG5uz
@@ -79,6 +77,39 @@ class MintChipMessage {
 		return true;
 	}
 
+	public function getPayerCert() {
+		if ($this->type != self::TYPE_VM_RESP) throw new \Exception('Not a VM resp');
+		if (!isset($this->attrs['vm-resp']['payer-cert'])) throw new \Exception('No payer certificate found');
+
+		$cert_info = openssl_x509_read(self::der2pem($this->attrs['vm-resp']['payer-cert']));
+		return $cert_info;
+	}
+
+	public function validatePayerCert() {
+		// code from http://developer.mintchipchallenge.com/devguide/developing/common/message-validation.html
+		$cert = $this->getPayerCert();
+		$pubkey = openssl_pkey_get_public($cert);
+
+		$CA = array('../cert/RCMSS0.pem', '../cert/RCMSS1.pem', '../cert/RCMSS2.pem');
+		$res = openssl_x509_checkpurpose(openssl_x509_parse($cert), X509_PURPOSE_ANY, $CA);
+		if (!$res) throw new \Exception('Invalid certificate found');
+
+		$signature = $this->attrs['vm-resp']['value-message']['signature'];
+
+		$fields = array(
+			'secure-element-version', 'payer-id', 'payee-id', 'currency',
+			'value', 'challenge', 'datetime', 'tac',
+		);
+
+		$VTMPF = '';
+		foreach($fields as $f) $VTMPF .= $this->attrs['vm-resp']['value-message'][$f];
+
+		$ok = openssl_verify($VTMPF, $signature, $pubkey);
+		if (!$ok) throw new \Exception('Invalid signature, message rejected');
+
+		return true;
+	}
+
 	private function _parse_vm_req($tlv) {
 		// Decode value message request
 
@@ -119,6 +150,8 @@ class MintChipMessage {
 		// Read ValueMessageResponse
 		$this->attrs['vm-resp'] = array('value-message' => array());
 
+		$has_cert = false;
+
 		$tlv = $this->readTLV($tlv[2]);
 		if ($tlv[0] != 0x30) throw new \Exception('Malformed TLV packet, vm_resp first child should have type 0x30');
 		$tlv = $this->readTLV($tlv[2]);
@@ -133,6 +166,7 @@ class MintChipMessage {
 			$cert = $tlv[3];
 			$cert[0] = chr(0x30); // god knows why
 			$this->attrs['vm-resp']['payer-cert'] = $cert;
+			$has_cert = true;
 		}
 
 		// Read data
@@ -148,6 +182,8 @@ class MintChipMessage {
 			$this->attrs['vm-resp']['value-message'][$tmp] = $tlv[2];
 		}
 		if ($tlv[3] != '') throw new \Exception('Malformed TLV packet, trailing data found after vm_resp');
+
+		if ($has_cert) $this->validatePayerCert();
 
 		return true;
 	}
@@ -175,6 +211,11 @@ class MintChipMessage {
 		$Trailing = (string)substr($data, $TLVLen);
 
 		return array($Tag, $Length, $Value, $Trailing);
+	}
+
+	private static function der2pem($data) {
+		$res = "-----BEGIN CERTIFICATE-----\r\n".chunk_split(base64_encode($data))."-----END CERTIFICATE-----\r\n";
+		return $res;
 	}
 }
 
